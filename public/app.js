@@ -6,6 +6,7 @@ const PERCENTAGES = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40];
 // DOM Elements
 const liftNameInput = document.getElementById('liftName');
 const liftWeightInput = document.getElementById('liftWeight');
+const barWeightSelect = document.getElementById('barWeight');
 const calculateBtn = document.getElementById('calculateBtn');
 const saveStatus = document.getElementById('saveStatus');
 const savedLiftsCard = document.getElementById('savedLiftsCard');
@@ -36,14 +37,13 @@ function roundUpToFive(weight) {
 }
 
 // Calculate barbell breakdown
-function calculateBarbellBreakdown(weight) {
-  const barWeight = 45;
+function calculateBarbellBreakdown(weight, barWeight) {
   let remaining = weight - barWeight;
 
   if (remaining < 0) return null;
 
   const plates = [];
-  const plateWeights = [45, 25, 10, 5];
+  const plateWeights = [45, 25, 10, 5, 2.5];
 
   for (const plate of plateWeights) {
     while (remaining >= plate * 2) {
@@ -56,8 +56,8 @@ function calculateBarbellBreakdown(weight) {
 }
 
 // Format plate breakdown string
-function formatPlateBreakdown(plates) {
-  if (!plates || plates.length === 0) return 'Bar only';
+function formatPlateBreakdown(plates, barWeight) {
+  if (!plates || plates.length === 0) return `${barWeight}lb bar only`;
 
   const counts = {};
   plates.forEach(p => {
@@ -84,7 +84,7 @@ function renderSavedLifts() {
 
   // Keep the first option, replace the rest
   savedLiftsSelect.innerHTML = '<option value="">Select a lift...</option>' +
-    lifts.map((lift, index) => `<option value="${index}">${lift.name} (${lift.weight}lbs)</option>`).join('');
+    lifts.map((lift, index) => `<option value="${index}">${lift.name} (${lift.weight}lbs, ${lift.barWeight || 45}lb bar)</option>`).join('');
 }
 
 // Load a saved lift
@@ -93,7 +93,8 @@ function loadLift(index) {
   if (lifts[index]) {
     liftNameInput.value = lifts[index].name;
     liftWeightInput.value = lifts[index].weight;
-    calculatePercentages(lifts[index].name, lifts[index].weight);
+    barWeightSelect.value = lifts[index].barWeight || 45;
+    calculatePercentages(lifts[index].name, lifts[index].weight, lifts[index].barWeight || 45);
   }
 }
 
@@ -109,18 +110,19 @@ function deleteLift(index) {
 }
 
 // Calculate and display percentages
-function calculatePercentages(name, weight) {
+function calculatePercentages(name, weight, barWeight) {
   resultsSection.style.display = 'block';
-  resultsTitle.textContent = `${name}: ${weight}lbs`;
+  resultsTitle.textContent = `${name}: ${weight}lbs (${barWeight}lb bar)`;
 
-  percentagesList.innerHTML = PERCENTAGES.map(pct => {
+  percentagesList.innerHTML = PERCENTAGES.map((pct, index) => {
     const calculatedWeight = (weight * pct) / 100;
     const roundedWeight = roundUpToFive(calculatedWeight);
-    const plates = calculateBarbellBreakdown(roundedWeight);
-    const plateText = formatPlateBreakdown(plates);
+    const plates = calculateBarbellBreakdown(roundedWeight, barWeight);
+    const plateText = formatPlateBreakdown(plates, barWeight);
+    const bgClass = index % 2 === 0 ? '' : 'bg-white';
 
     return `
-      <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+      <div class="d-flex align-items-center justify-content-between py-2 px-2 ${bgClass}" style="border-radius: 4px;">
         <div class="d-flex align-items-center gap-3">
           <span class="text-muted small" style="width: 36px;">${pct}%</span>
           <span class="fw-bold">${roundedWeight}</span>
@@ -132,18 +134,19 @@ function calculatePercentages(name, weight) {
 }
 
 // Save current lift
-function saveCurrentLift(name, weight) {
+function saveCurrentLift(name, weight, barWeight) {
   let lifts = getSavedLifts();
 
   const existingIndex = lifts.findIndex(l => l.name.toLowerCase() === name.toLowerCase());
 
   if (existingIndex >= 0) {
     lifts[existingIndex].weight = weight;
+    lifts[existingIndex].barWeight = barWeight;
   } else {
     if (lifts.length >= MAX_SAVED_LIFTS) {
       lifts.shift();
     }
-    lifts.push({ name, weight });
+    lifts.push({ name, weight, barWeight });
   }
 
   saveLifts(lifts);
@@ -159,14 +162,15 @@ function saveCurrentLift(name, weight) {
 calculateBtn.addEventListener('click', () => {
   const name = liftNameInput.value.trim() || 'Lift';
   const weight = parseFloat(liftWeightInput.value);
+  const barWeight = parseInt(barWeightSelect.value);
 
   if (isNaN(weight) || weight <= 0) {
     alert('Please enter a valid weight');
     return;
   }
 
-  calculatePercentages(name, weight);
-  saveCurrentLift(name, weight);
+  calculatePercentages(name, weight, barWeight);
+  saveCurrentLift(name, weight, barWeight);
 });
 
 savedLiftsSelect.addEventListener('change', () => {
